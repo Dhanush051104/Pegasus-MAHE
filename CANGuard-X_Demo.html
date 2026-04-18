@@ -1,0 +1,1248 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CANGuard-X — Live Simulation</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#020810;--bg2:#060f1e;--bg3:#0a1628;--bg4:#0f1f3a;
+    --blue:#00c8ff;--blue2:#0088cc;--green:#00ff88;--red:#ff2244;
+    --amber:#ffaa00;--purple:#aa44ff;--text:#d0e8ff;--muted:#3a5570;
+    --border:#102030;--border2:#1a3a55;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:'Courier New',monospace;
+    overflow-x:hidden;min-height:100vh;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::before{
+    content:'';position:fixed;inset:0;z-index:0;
+    background-image:
+      linear-gradient(rgba(0,200,255,.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,200,255,.04) 1px,transparent 1px);
+    background-size:50px 50px;pointer-events:none;
+  }
+
+  /* ── SCANLINE ── */
+  body::after{
+    content:'';position:fixed;top:0;left:0;width:100%;height:3px;
+    background:rgba(0,200,255,.12);z-index:9999;
+    animation:scanline 4s linear infinite;pointer-events:none;
+  }
+  @keyframes scanline{0%{top:-3px}100%{top:100vh}}
+
+  /* ── NAV ── */
+  #nav{
+    position:fixed;top:0;left:0;right:0;z-index:1000;
+    background:rgba(2,8,16,.92);border-bottom:1px solid var(--border2);
+    backdrop-filter:blur(12px);
+    display:flex;align-items:center;gap:0;padding:0 20px;height:48px;
+  }
+  #nav .logo{
+    font-size:13px;font-weight:bold;color:var(--blue);
+    letter-spacing:.15em;margin-right:24px;white-space:nowrap;
+  }
+  #nav .logo span{color:var(--green)}
+  .nav-step{
+    padding:0 14px;height:48px;display:flex;align-items:center;
+    font-size:10px;letter-spacing:.1em;color:var(--muted);
+    border-bottom:2px solid transparent;cursor:pointer;
+    transition:all .2s;white-space:nowrap;
+  }
+  .nav-step:hover{color:var(--text)}
+  .nav-step.active{color:var(--blue);border-bottom-color:var(--blue)}
+  .nav-step.done{color:var(--green)}
+  #nav .step-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;border-radius:50%;border:1px solid currentColor;
+    font-size:9px;margin-right:6px;
+  }
+  #status-bar{
+    margin-left:auto;display:flex;align-items:center;gap:16px;
+    font-size:10px;color:var(--muted);
+  }
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.2s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  /* ── PAGES ── */
+  .page{
+    display:none;min-height:100vh;padding-top:48px;
+    position:relative;z-index:1;
+  }
+  .page.active{display:flex;flex-direction:column}
+
+  /* ── PAGE TRANSITIONS ── */
+  .page.entering{animation:pageIn .5s ease forwards}
+  @keyframes pageIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+  /* ══════════════════════════════════
+     PAGE 1 — CINEMATIC INTRO
+  ══════════════════════════════════ */
+  #page-intro{
+    justify-content:center;align-items:center;text-align:center;
+    min-height:100vh;padding:48px 40px 40px;
+  }
+  .intro-rings{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    pointer-events:none;
+  }
+  .ring{
+    position:absolute;border-radius:50%;border:1px solid rgba(0,200,255,.15);
+    transform:translate(-50%,-50%);animation:ringPulse 3s ease-out infinite;
+  }
+  @keyframes ringPulse{
+    0%{width:100px;height:100px;opacity:.8}
+    100%{width:600px;height:600px;opacity:0}
+  }
+  .intro-content{position:relative;z-index:2;max-width:700px}
+  .intro-badge{
+    display:inline-block;font-size:10px;letter-spacing:.2em;
+    color:var(--blue);border:1px solid rgba(0,200,255,.3);
+    padding:4px 14px;border-radius:2px;margin-bottom:24px;
+  }
+  .intro-title{
+    font-size:42px;font-weight:bold;letter-spacing:.05em;
+    color:#fff;line-height:1.1;margin-bottom:8px;
+  }
+  .intro-title span{color:var(--blue)}
+  .intro-sub{
+    font-size:13px;color:var(--blue);letter-spacing:.15em;
+    margin-bottom:20px;
+  }
+  .intro-desc{
+    font-size:13px;color:var(--muted);line-height:1.8;
+    margin-bottom:32px;font-family:sans-serif;
+  }
+  .intro-stats{
+    display:flex;gap:20px;justify-content:center;
+    margin-bottom:36px;flex-wrap:wrap;
+  }
+  .istat{
+    background:var(--bg3);border:1px solid var(--border2);
+    border-radius:6px;padding:14px 22px;min-width:110px;
+  }
+  .istat-val{font-size:28px;font-weight:bold;color:var(--green)}
+  .istat-lbl{font-size:9px;color:var(--muted);letter-spacing:.1em;margin-top:3px}
+  .btn-start{
+    background:var(--blue);color:#000;border:none;
+    font-family:'Courier New',monospace;font-size:12px;
+    letter-spacing:.15em;padding:14px 36px;border-radius:4px;
+    cursor:pointer;font-weight:bold;
+    transition:all .2s;
+  }
+  .btn-start:hover{background:#fff;transform:scale(1.03)}
+
+  /* ══════════════════════════════════
+     PAGE 2 — ATTACK VISUALIZATION
+  ══════════════════════════════════ */
+  #page-attack{padding:48px 0 0;flex-direction:column}
+  .page-header{
+    padding:20px 32px 16px;border-bottom:1px solid var(--border);
+  }
+  .page-header h2{font-size:14px;letter-spacing:.15em;color:var(--blue)}
+  .page-header p{font-size:11px;color:var(--muted);margin-top:4px;font-family:sans-serif}
+
+  .attack-layout{
+    display:grid;grid-template-columns:1fr 340px;
+    flex:1;gap:0;overflow:hidden;
+  }
+
+  /* Car canvas */
+  .car-section{
+    padding:24px;display:flex;flex-direction:column;gap:16px;
+  }
+  .car-svg-wrap{
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:8px;padding:16px;flex:1;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  /* Side panel */
+  .attack-panel{
+    background:var(--bg2);border-left:1px solid var(--border2);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .panel-title{
+    padding:14px 18px;border-bottom:1px solid var(--border);
+    font-size:10px;letter-spacing:.15em;color:var(--muted);
+  }
+  .phase-list{flex:1;overflow-y:auto;padding:12px}
+  .phase-item{
+    padding:12px 14px;border-radius:6px;border:1px solid var(--border);
+    margin-bottom:8px;cursor:pointer;transition:all .25s;
+  }
+  .phase-item:hover{border-color:var(--border2)}
+  .phase-item.active{border-color:var(--blue);background:rgba(0,200,255,.05)}
+  .phase-item.attack-phase.active{border-color:var(--red);background:rgba(255,34,68,.05)}
+  .phase-item.recover-phase.active{border-color:var(--green);background:rgba(0,255,136,.05)}
+  .phase-num{font-size:9px;color:var(--muted);letter-spacing:.1em;margin-bottom:4px}
+  .phase-name{font-size:12px;font-weight:bold;margin-bottom:4px}
+  .phase-desc{font-size:11px;color:var(--muted);line-height:1.6;font-family:sans-serif;display:none}
+  .phase-item.active .phase-desc{display:block}
+  .phase-item.active .phase-name{color:var(--blue)}
+  .phase-item.attack-phase.active .phase-name{color:var(--red)}
+  .phase-item.recover-phase.active .phase-name{color:var(--green)}
+
+  .attack-log{
+    border-top:1px solid var(--border);padding:10px 14px;
+    font-size:10px;max-height:120px;overflow-y:auto;
+    font-family:'Courier New',monospace;
+  }
+  .log-entry{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+  .log-entry.normal{color:var(--muted)}
+  .log-entry.warn{color:var(--amber)}
+  .log-entry.danger{color:var(--red)}
+  .log-entry.safe{color:var(--green)}
+
+  .phase-controls{
+    padding:12px 14px;border-top:1px solid var(--border);
+    display:flex;gap:8px;
+  }
+  .ctrl-btn{
+    flex:1;padding:8px;background:var(--bg3);border:1px solid var(--border2);
+    color:var(--text);font-family:'Courier New',monospace;font-size:10px;
+    letter-spacing:.08em;cursor:pointer;border-radius:4px;transition:all .2s;
+  }
+  .ctrl-btn:hover{border-color:var(--blue);color:var(--blue)}
+  .ctrl-btn.primary{background:rgba(0,200,255,.1);border-color:var(--blue);color:var(--blue)}
+  .ctrl-btn.danger-btn{background:rgba(255,34,68,.08);border-color:var(--red);color:var(--red)}
+
+  /* ══════════════════════════════════
+     PAGE 3 — PIPELINE
+  ══════════════════════════════════ */
+  #page-pipeline{padding:48px 32px 32px;align-items:stretch}
+  .pipeline-wrap{flex:1;display:flex;flex-direction:column;gap:20px}
+  .pipe-stages{
+    display:flex;align-items:center;gap:0;overflow-x:auto;
+    padding:8px 0;
+  }
+  .pipe-stage{
+    display:flex;flex-direction:column;align-items:center;
+    min-width:80px;position:relative;
+  }
+  .pipe-node{
+    width:56px;height:56px;border-radius:50%;
+    border:2px solid var(--border2);background:var(--bg3);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    transition:all .4s;position:relative;cursor:default;
+  }
+  .pipe-node .pico{font-size:16px;line-height:1}
+  .pipe-node .plbl{font-size:7px;color:var(--muted);letter-spacing:.05em;margin-top:2px;text-align:center}
+  .pipe-node.waiting{border-color:var(--border2);opacity:.4}
+  .pipe-node.processing{
+    border-color:var(--blue);
+    box-shadow:0 0 0 4px rgba(0,200,255,.15),0 0 20px rgba(0,200,255,.3);
+    animation:nodePulse .8s ease-in-out infinite;
+  }
+  @keyframes nodePulse{0%,100%{box-shadow:0 0 0 4px rgba(0,200,255,.15),0 0 20px rgba(0,200,255,.3)}50%{box-shadow:0 0 0 8px rgba(0,200,255,.08),0 0 40px rgba(0,200,255,.5)}}
+  .pipe-node.done{border-color:var(--green);background:rgba(0,255,136,.08);box-shadow:0 0 12px rgba(0,255,136,.2)}
+  .pipe-node.error{border-color:var(--red);background:rgba(255,34,68,.08)}
+  .pipe-connector{
+    width:32px;height:2px;background:var(--border2);
+    transition:background .4s;flex-shrink:0;
+  }
+  .pipe-connector.active{background:var(--blue);box-shadow:0 0 6px var(--blue)}
+  .pipe-connector.done{background:var(--green)}
+  .pipe-stage-label{font-size:9px;color:var(--muted);margin-top:6px;text-align:center;max-width:70px;line-height:1.3}
+
+  .pipe-output-panel{
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:8px;padding:16px 20px;flex:1;
+    display:grid;grid-template-columns:1fr 1fr;gap:16px;
+  }
+  .pipe-console{
+    background:var(--bg);border:1px solid var(--border);
+    border-radius:4px;padding:12px;font-size:11px;
+    height:220px;overflow-y:auto;
+  }
+  .console-line{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+  .console-line .ts{color:var(--muted);margin-right:8px}
+  .console-line.info{color:var(--blue)}
+  .console-line.ok{color:var(--green)}
+  .console-line.err{color:var(--red)}
+  .console-line.warn{color:var(--amber)}
+  .pipe-result{display:flex;flex-direction:column;gap:10px}
+  .result-card{
+    background:var(--bg3);border:1px solid var(--border2);
+    border-radius:6px;padding:12px 14px;
+  }
+  .result-card h4{font-size:9px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
+  .result-val{font-size:22px;font-weight:bold}
+  .result-bar-wrap{background:var(--bg);border-radius:3px;height:4px;margin-top:6px;overflow:hidden}
+  .result-bar{height:100%;border-radius:3px;transition:width .8s ease}
+  .pipe-btn-row{display:flex;gap:10px;margin-top:4px}
+
+  /* ══════════════════════════════════
+     PAGE 4 — INTELLIGENCE LAYERS
+  ══════════════════════════════════ */
+  #page-intel{padding:48px 32px 32px}
+  .intel-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    gap:12px;margin-top:16px;
+  }
+  .intel-card{
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:8px;padding:14px;transition:all .3s;
+    position:relative;overflow:hidden;
+  }
+  .intel-card::before{
+    content:'';position:absolute;inset:0;
+    background:var(--card-glow,transparent);
+    pointer-events:none;transition:background .5s;
+  }
+  .intel-card.firing{--card-glow:rgba(0,200,255,.05);border-color:var(--blue)}
+  .intel-card.alert{--card-glow:rgba(255,34,68,.05);border-color:var(--red)}
+  .intel-card.safe-card{--card-glow:rgba(0,255,136,.05);border-color:var(--green)}
+  .ic-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .ic-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--border2)}
+  .ic-title{font-size:9px;letter-spacing:.1em;color:var(--muted)}
+  .ic-value{font-size:20px;font-weight:bold;margin-bottom:4px}
+  .ic-bar-wrap{background:var(--bg);border-radius:3px;height:3px;overflow:hidden}
+  .ic-bar{height:100%;border-radius:3px;width:0%;transition:width 1s ease}
+  .ic-tag{
+    display:inline-block;font-size:8px;padding:2px 7px;
+    border-radius:2px;margin-top:8px;letter-spacing:.08em;
+  }
+  .ic-sub{font-size:9px;color:var(--muted);margin-top:4px;font-family:sans-serif}
+  .ic-sparkline{margin-top:8px}
+
+  /* ══════════════════════════════════
+     PAGE 5 — LIVE DASHBOARD
+  ══════════════════════════════════ */
+  #page-dash{padding:48px 0 0;flex-direction:column}
+  .dash-layout{
+    display:grid;grid-template-columns:1fr 380px;
+    flex:1;overflow:hidden;
+  }
+  .dash-main{padding:20px 24px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+  .dash-right{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column}
+
+  .metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .metric-card{
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:6px;padding:12px 14px;
+  }
+  .metric-val{font-size:24px;font-weight:bold}
+  .metric-lbl{font-size:9px;color:var(--muted);letter-spacing:.1em;margin-top:3px}
+
+  .can-feed{
+    background:var(--bg);border:1px solid var(--border2);
+    border-radius:6px;height:200px;overflow-y:auto;
+    font-size:10px;
+  }
+  .feed-header{
+    padding:8px 12px;border-bottom:1px solid var(--border);
+    font-size:9px;letter-spacing:.12em;color:var(--muted);
+    display:flex;justify-content:space-between;
+    position:sticky;top:0;background:var(--bg);
+  }
+  .feed-row{
+    padding:4px 12px;display:grid;
+    grid-template-columns:65px 55px 40px 60px 1fr;
+    gap:8px;align-items:center;
+    border-bottom:1px solid rgba(255,255,255,.02);
+    transition:background .1s;
+  }
+  .feed-row.attack-row{background:rgba(255,34,68,.06)}
+  .feed-row.blocked-row{background:rgba(0,255,136,.04)}
+  .feed-ts{color:var(--muted)}
+  .feed-id{}
+  .feed-dlc{color:var(--muted)}
+  .feed-label{font-size:9px;padding:1px 6px;border-radius:2px;text-align:center}
+  .label-normal{background:rgba(58,85,112,.3);color:var(--muted)}
+  .label-attack{background:rgba(255,34,68,.2);color:var(--red)}
+  .label-blocked{background:rgba(0,255,136,.15);color:var(--green)}
+  .feed-data{color:var(--muted);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .risk-panel{
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:6px;padding:14px 16px;
+  }
+  .risk-title{font-size:9px;letter-spacing:.15em;color:var(--muted);margin-bottom:10px}
+  .risk-gauge-wrap{position:relative}
+  .risk-track{background:var(--bg);border-radius:4px;height:12px;overflow:hidden}
+  .risk-fill{height:100%;border-radius:4px;transition:width .4s,background .4s}
+  .risk-markers{display:flex;justify-content:space-between;font-size:8px;color:var(--muted);margin-top:3px}
+  .risk-score{font-size:32px;font-weight:bold;margin-top:6px}
+
+  /* Right panel */
+  .dash-right-header{padding:12px 16px;border-bottom:1px solid var(--border);font-size:9px;letter-spacing:.15em;color:var(--muted)}
+  .attack-type-list{padding:12px;display:flex;flex-direction:column;gap:6px}
+  .atk-type-row{
+    background:var(--bg3);border:1px solid var(--border);
+    border-radius:4px;padding:8px 12px;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .atk-type-name{font-size:10px}
+  .atk-count{font-size:14px;font-weight:bold;color:var(--red)}
+  .atk-bar-wrap{background:var(--bg);height:3px;border-radius:2px;margin-top:5px;overflow:hidden}
+  .atk-bar{height:100%;background:var(--red);border-radius:2px;transition:width .4s}
+
+  .ecu-status{padding:12px;border-top:1px solid var(--border)}
+  .ecu-row{
+    display:flex;align-items:center;gap:8px;padding:6px 0;
+    border-bottom:1px solid rgba(255,255,255,.03);font-size:10px;
+  }
+  .ecu-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .ecu-dot.ok{background:var(--green)}
+  .ecu-dot.danger{background:var(--red);animation:blink .6s infinite}
+  .ecu-dot.warning{background:var(--amber)}
+  .ecu-name{flex:1}
+  .ecu-state{font-size:9px;letter-spacing:.05em}
+
+  .dash-controls{
+    padding:12px;border-top:1px solid var(--border);
+    display:flex;gap:8px;
+  }
+
+  /* ══════════════════════════════════
+     SHARED UTILITIES
+  ══════════════════════════════════ */
+  .section-title{
+    font-size:10px;letter-spacing:.2em;color:var(--muted);
+    margin-bottom:4px;
+  }
+  .next-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.3);
+    color:var(--blue);font-family:'Courier New',monospace;
+    font-size:11px;letter-spacing:.1em;padding:10px 20px;
+    border-radius:4px;cursor:pointer;transition:all .2s;
+    margin-top:16px;
+  }
+  .next-btn:hover{background:rgba(0,200,255,.15)}
+  .page-footer{
+    padding:16px 32px;border-top:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .scrollbar-thin::-webkit-scrollbar{width:4px}
+  .scrollbar-thin::-webkit-scrollbar-track{background:var(--bg)}
+  .scrollbar-thin::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+  .typing{
+    display:inline-block;
+    border-right:2px solid var(--blue);
+    animation:typeCursor .7s step-end infinite;
+  }
+  @keyframes typeCursor{0%,100%{border-color:transparent}50%{border-color:var(--blue)}}
+  .glow-text{text-shadow:0 0 20px currentColor}
+  .tag{
+    display:inline-block;font-size:9px;padding:2px 8px;
+    border-radius:2px;letter-spacing:.08em;
+  }
+  .tag-red{background:rgba(255,34,68,.15);color:var(--red);border:1px solid rgba(255,34,68,.3)}
+  .tag-green{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
+  .tag-amber{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.2)}
+  .tag-blue{background:rgba(0,200,255,.1);color:var(--blue);border:1px solid rgba(0,200,255,.2)}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <div class="logo">CAN<span>Guard</span>-X</div>
+  <div class="nav-step active" id="nav-0" onclick="goPage(0)"><span class="step-num">1</span>INTRO</div>
+  <div class="nav-step" id="nav-1" onclick="goPage(1)"><span class="step-num">2</span>ATTACK SIM</div>
+  <div class="nav-step" id="nav-2" onclick="goPage(2)"><span class="step-num">3</span>PIPELINE</div>
+  <div class="nav-step" id="nav-3" onclick="goPage(3)"><span class="step-num">4</span>INTELLIGENCE</div>
+  <div class="nav-step" id="nav-4" onclick="goPage(4)"><span class="step-num">5</span>LIVE DASHBOARD</div>
+  <div id="status-bar">
+    <div class="status-dot"></div>
+    <span id="status-text">SYSTEM READY</span>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════
+     PAGE 1 — INTRO
+════════════════════════════════════ -->
+<div class="page active" id="page-intro">
+  <div class="intro-rings">
+    <div class="ring" style="animation-delay:0s"></div>
+    <div class="ring" style="animation-delay:1s"></div>
+    <div class="ring" style="animation-delay:2s"></div>
+  </div>
+  <div class="intro-content">
+    <div class="intro-badge">MAHE MOBILITY CHALLENGE 2026 — TRACK 03 CYBERSECURITY</div>
+    <div class="intro-title">CAN<span>Guard</span>-X</div>
+    <div class="intro-sub">EDGE-AI INTRUSION DETECTION FOR SOFTWARE-DEFINED VEHICLES</div>
+    <div class="intro-desc" id="intro-typing"></div>
+    <div class="intro-stats">
+      <div class="istat"><div class="istat-val" id="is1">0%</div><div class="istat-lbl">ACCURACY</div></div>
+      <div class="istat"><div class="istat-val" id="is2">0ms</div><div class="istat-lbl">RESPONSE</div></div>
+      <div class="istat"><div class="istat-val" id="is3">0</div><div class="istat-lbl">ATTACK TYPES</div></div>
+      <div class="istat"><div class="istat-val" id="is4">0</div><div class="istat-lbl">FLEET NODES</div></div>
+    </div>
+    <button class="btn-start" onclick="goPage(1)">▶ LAUNCH ATTACK SIMULATION</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     PAGE 2 — ATTACK VISUALIZATION
+════════════════════════════════════ -->
+<div class="page" id="page-attack">
+  <div class="page-header">
+    <h2>ATTACK SIMULATION — VEHICLE CAN NETWORK</h2>
+    <p>Step through each phase to see how an attacker compromises the vehicle and how CANGuard-X responds.</p>
+  </div>
+  <div class="attack-layout" style="flex:1">
+    <div class="car-section">
+      <div class="car-svg-wrap">
+        <svg id="carsvg" width="100%" viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="glow-blue">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-red">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-green">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- Car body -->
+          <rect x="60" y="100" width="520" height="120" rx="30" fill="#060f1e" stroke="#102030" stroke-width="1.5"/>
+          <rect x="140" y="68" width="330" height="60" rx="16" fill="#060f1e" stroke="#102030" stroke-width="1"/>
+          <!-- Wheels -->
+          <circle cx="160" cy="225" r="34" fill="#020810" stroke="#102030" stroke-width="2"/>
+          <circle cx="480" cy="225" r="34" fill="#020810" stroke="#102030" stroke-width="2"/>
+          <circle cx="160" cy="225" r="16" fill="#060f1e" stroke="#1a3a55" stroke-width="1.5"/>
+          <circle cx="480" cy="225" r="16" fill="#060f1e" stroke="#1a3a55" stroke-width="1.5"/>
+          <!-- Headlights -->
+          <rect x="64" y="118" width="20" height="12" rx="3" fill="#1a3a55" id="hl-left"/>
+          <rect x="556" y="118" width="20" height="12" rx="3" fill="#1a3a55" id="hl-right"/>
+          <!-- Window -->
+          <rect x="148" y="76" width="314" height="44" rx="10" fill="#0a1628" stroke="#1a3050" stroke-width="1"/>
+
+          <!-- CAN BUS backbone -->
+          <line id="canbus" x1="130" y1="155" x2="510" y2="155" stroke="#1a3050" stroke-width="4" stroke-linecap="round"/>
+          <!-- Animated bus signal -->
+          <line id="bus-signal" x1="130" y1="155" x2="130" y2="155" stroke="#00c8ff" stroke-width="4" stroke-linecap="round" opacity="0"/>
+
+          <!-- ECU vertical connectors -->
+          <line id="cn-brk" x1="185" y1="155" x2="185" y2="118" stroke="#1a3050" stroke-width="1.5"/>
+          <line id="cn-eng" x1="265" y1="155" x2="265" y2="118" stroke="#1a3050" stroke-width="1.5"/>
+          <line id="cn-str" x1="320" y1="155" x2="320" y2="118" stroke="#1a3050" stroke-width="1.5"/>
+          <line id="cn-sns" x1="390" y1="155" x2="390" y2="118" stroke="#1a3050" stroke-width="1.5"/>
+          <line id="cn-ids" x1="450" y1="155" x2="450" y2="118" stroke="#1a3050" stroke-width="1.5"/>
+          <!-- OBD connector -->
+          <line id="cn-obd" x1="320" y1="155" x2="320" y2="195" stroke="#1a3050" stroke-width="1.5"/>
+
+          <!-- ECU nodes -->
+          <g id="ecu-brk">
+            <circle cx="185" cy="104" r="14" fill="#060f1e" stroke="#1a3050" stroke-width="2" id="ecu-brk-circle"/>
+            <text x="185" y="108" text-anchor="middle" fill="#3a5570" font-size="9" font-family="monospace" font-weight="bold">BRK</text>
+          </g>
+          <g id="ecu-eng">
+            <circle cx="265" cy="104" r="14" fill="#060f1e" stroke="#1a3050" stroke-width="2" id="ecu-eng-circle"/>
+            <text x="265" y="108" text-anchor="middle" fill="#3a5570" font-size="9" font-family="monospace" font-weight="bold">ENG</text>
+          </g>
+          <g id="ecu-str">
+            <circle cx="320" cy="104" r="14" fill="#060f1e" stroke="#1a3050" stroke-width="2" id="ecu-str-circle"/>
+            <text x="320" y="108" text-anchor="middle" fill="#3a5570" font-size="9" font-family="monospace" font-weight="bold">STR</text>
+          </g>
+          <g id="ecu-sns">
+            <circle cx="390" cy="104" r="14" fill="#060f1e" stroke="#1a3050" stroke-width="2" id="ecu-sns-circle"/>
+            <text x="390" y="108" text-anchor="middle" fill="#3a5570" font-size="9" font-family="monospace" font-weight="bold">SNS</text>
+          </g>
+          <g id="ecu-ids">
+            <circle cx="450" cy="104" r="14" fill="#060f1e" stroke="#1a3050" stroke-width="2" id="ecu-ids-circle"/>
+            <text x="450" y="108" text-anchor="middle" fill="#3a5570" font-size="9" font-family="monospace" font-weight="bold">IDS</text>
+          </g>
+
+          <!-- OBD port -->
+          <rect x="308" y="192" width="24" height="16" rx="3" fill="#060f1e" stroke="#1a3050" stroke-width="1.5" id="obd-rect"/>
+          <text x="320" y="203" text-anchor="middle" fill="#3a5570" font-size="8" font-family="monospace">OBD</text>
+
+          <!-- Attacker device (hidden initially) -->
+          <g id="attacker-group" opacity="0">
+            <rect x="298" y="230" width="44" height="28" rx="4" fill="#200008" stroke="#ff2244" stroke-width="1.5"/>
+            <text x="320" y="248" text-anchor="middle" fill="#ff2244" font-size="9" font-family="monospace" font-weight="bold">HACKER</text>
+            <line x1="320" y1="230" x2="320" y2="208" stroke="#ff2244" stroke-width="1.5" stroke-dasharray="3 2"/>
+          </g>
+
+          <!-- Signal particles group -->
+          <g id="particles"></g>
+
+          <!-- Labels -->
+          <text x="88" y="150" fill="#1a3050" font-size="9" font-family="monospace">CAN BUS</text>
+          <text x="185" y="130" text-anchor="middle" fill="#1a3050" font-size="8" font-family="monospace">Brake</text>
+          <text x="265" y="130" text-anchor="middle" fill="#1a3050" font-size="8" font-family="monospace">Engine</text>
+          <text x="320" y="130" text-anchor="middle" fill="#1a3050" font-size="8" font-family="monospace">Steer</text>
+          <text x="390" y="130" text-anchor="middle" fill="#1a3050" font-size="8" font-family="monospace">Sensor</text>
+          <text x="450" y="130" text-anchor="middle" fill="#1a3050" font-size="8" font-family="monospace">IDS</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="attack-panel">
+      <div class="panel-title">SIMULATION PHASES</div>
+      <div class="phase-list scrollbar-thin" id="phase-list"></div>
+      <div class="attack-log scrollbar-thin" id="attack-log">
+        <div class="log-entry normal">[SYSTEM] CANGuard-X simulation ready</div>
+      </div>
+      <div class="phase-controls">
+        <button class="ctrl-btn" onclick="prevPhase()">◀ PREV</button>
+        <button class="ctrl-btn primary" onclick="nextPhase()">NEXT PHASE ▶</button>
+        <button class="ctrl-btn" onclick="goPage(2)">PIPELINE →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     PAGE 3 — PIPELINE
+════════════════════════════════════ -->
+<div class="page" id="page-pipeline">
+  <div class="pipeline-wrap">
+    <div>
+      <div class="section-title">AI PROCESSING PIPELINE</div>
+      <div style="font-size:13px;color:var(--muted);font-family:sans-serif">Watch each stage activate as the attack signal is processed through CANGuard-X</div>
+    </div>
+    <div style="overflow-x:auto;padding-bottom:8px">
+      <div class="pipe-stages" id="pipe-stages"></div>
+    </div>
+    <div class="pipe-output-panel">
+      <div>
+        <div class="section-title" style="margin-bottom:8px">PIPELINE CONSOLE</div>
+        <div class="pipe-console scrollbar-thin" id="pipe-console">
+          <div class="console-line info"><span class="ts">[00:00]</span>CANGuard-X pipeline initialised</div>
+        </div>
+        <div class="pipe-btn-row">
+          <button class="ctrl-btn primary" onclick="runPipeline()" id="pipe-run-btn">▶ RUN PIPELINE</button>
+          <button class="ctrl-btn" onclick="resetPipeline()">↺ RESET</button>
+          <button class="ctrl-btn" onclick="goPage(3)">INTELLIGENCE →</button>
+        </div>
+      </div>
+      <div class="pipe-result" id="pipe-result">
+        <div class="result-card">
+          <h4>RANDOM FOREST OUTPUT</h4>
+          <div class="result-val" id="rf-val" style="color:var(--muted)">—</div>
+          <div class="result-bar-wrap"><div class="result-bar" id="rf-bar" style="width:0%;background:var(--blue)"></div></div>
+        </div>
+        <div class="result-card">
+          <h4>LSTM ANOMALY SCORE</h4>
+          <div class="result-val" id="lstm-val" style="color:var(--muted)">—</div>
+          <div class="result-bar-wrap"><div class="result-bar" id="lstm-bar" style="width:0%;background:var(--purple)"></div></div>
+        </div>
+        <div class="result-card">
+          <h4>FINAL DECISION</h4>
+          <div class="result-val" id="decision-val" style="color:var(--muted);font-size:14px">AWAITING PIPELINE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     PAGE 4 — INTELLIGENCE LAYERS
+════════════════════════════════════ -->
+<div class="page" id="page-intel">
+  <div class="section-title">INTELLIGENCE LAYERS — REAL-TIME AI OUTPUT</div>
+  <div class="intel-grid" id="intel-grid"></div>
+  <div class="page-footer">
+    <div style="font-size:11px;color:var(--muted)">All 8 layers agree: <span style="color:var(--red)">ATTACK CONFIRMED</span> — ECU 0x0CF spoofing brake commands</div>
+    <button class="next-btn" onclick="goPage(4)">GO TO LIVE DASHBOARD ▶</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     PAGE 5 — LIVE DASHBOARD
+════════════════════════════════════ -->
+<div class="page" id="page-dash">
+  <div class="page-header">
+    <h2>LIVE MONITORING DASHBOARD</h2>
+    <p>Real-time CAN frame analysis, threat detection and fleet status</p>
+  </div>
+  <div class="dash-layout" style="flex:1;overflow:hidden">
+    <div class="dash-main scrollbar-thin">
+      <div class="metric-row">
+        <div class="metric-card"><div class="metric-val" id="dm-fps" style="color:var(--blue)">0</div><div class="metric-lbl">FRAMES/SEC</div></div>
+        <div class="metric-card"><div class="metric-val" id="dm-blocked" style="color:var(--red)">0</div><div class="metric-lbl">ATTACKS BLOCKED</div></div>
+        <div class="metric-card"><div class="metric-val" id="dm-acc" style="color:var(--green)">—</div><div class="metric-lbl">DETECTION RATE</div></div>
+        <div class="metric-card"><div class="metric-val" id="dm-latency" style="color:var(--amber)">—</div><div class="metric-lbl">AVG LATENCY</div></div>
+      </div>
+
+      <div>
+        <div class="section-title" style="margin-bottom:6px">LIVE CAN FRAME FEED</div>
+        <div class="can-feed scrollbar-thin" id="can-feed">
+          <div class="feed-header">
+            <span>TIMESTAMP</span><span>CAN ID</span><span>DLC</span><span>STATUS</span><span>PAYLOAD</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="risk-panel">
+        <div class="risk-title">THREAT RISK LEVEL</div>
+        <div class="risk-gauge-wrap">
+          <div class="risk-track"><div class="risk-fill" id="risk-fill" style="width:8%;background:var(--green)"></div></div>
+          <div class="risk-markers"><span>LOW</span><span>MEDIUM</span><span>HIGH</span><span>CRITICAL</span></div>
+          <div class="risk-score" id="risk-score" style="color:var(--green)">LOW</div>
+        </div>
+      </div>
+
+      <div class="dash-controls">
+        <button class="ctrl-btn primary" id="dash-btn" onclick="toggleDash()">▶ START LIVE SIMULATION</button>
+        <button class="ctrl-btn danger-btn" onclick="triggerAttack()">⚡ INJECT ATTACK</button>
+        <button class="ctrl-btn" onclick="resetDash()">↺ RESET</button>
+      </div>
+    </div>
+
+    <div class="dash-right">
+      <div class="dash-right-header">ATTACK TYPE BREAKDOWN</div>
+      <div class="attack-type-list" id="atk-type-list"></div>
+      <div class="ecu-status" id="ecu-status-panel">
+        <div style="font-size:9px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px">ECU STATUS</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── PAGE NAVIGATION ─── */
+var pages=['page-intro','page-attack','page-pipeline','page-intel','page-dash'];
+var currentPage=0;
+function goPage(i){
+  document.getElementById(pages[currentPage]).classList.remove('active');
+  document.getElementById('nav-'+currentPage).classList.remove('active');
+  document.getElementById('nav-'+currentPage).classList.add('done');
+  currentPage=i;
+  var p=document.getElementById(pages[i]);
+  p.classList.add('active','entering');
+  setTimeout(function(){p.classList.remove('entering')},500);
+  document.getElementById('nav-'+i).classList.add('active');
+  document.getElementById('nav-'+i).classList.remove('done');
+  if(i===1)initAttackPage();
+  if(i===2)initPipeline();
+  if(i===3)initIntel();
+  if(i===4)initDash();
+}
+
+/* ─── PAGE 1: INTRO ANIMATION ─── */
+var introLines=[
+  'Modern vehicles contain 50-100 ECUs communicating over the CAN bus.',
+  'The CAN protocol has zero built-in authentication — it trusts every message.',
+  'A hacker who gains access can inject fake brake or steering commands.',
+  'CANGuard-X detects and blocks attacks in under 1 millisecond.'
+];
+var introIdx=0,introCharIdx=0,introEl=document.getElementById('intro-typing');
+function typeIntro(){
+  if(introIdx>=introLines.length){introEl.classList.remove('typing');return}
+  var line=introLines[introIdx];
+  if(introCharIdx<=line.length){
+    introEl.textContent=line.substring(0,introCharIdx);
+    introEl.classList.add('typing');
+    introCharIdx++;
+    setTimeout(typeIntro,28);
+  } else {
+    introEl.textContent=line+'  ';
+    introIdx++;introCharIdx=0;
+    setTimeout(typeIntro,600);
+  }
+}
+setTimeout(typeIntro,500);
+
+var statTargets=[98,1,4,16];
+var statIds=['is1','is2','is3','is4'];
+var statSuffixes=['%','ms','',''];
+statTargets.forEach(function(t,i){
+  var cur=0,step=Math.max(1,Math.round(t/30));
+  var interval=setInterval(function(){
+    cur=Math.min(t,cur+step);
+    document.getElementById(statIds[i]).textContent=cur+statSuffixes[i];
+    if(cur>=t)clearInterval(interval);
+  },40);
+});
+
+/* ─── PAGE 2: ATTACK SIMULATION ─── */
+var attackPhase=0;
+var phases=[
+  {
+    name:'Normal Operation',
+    num:'PHASE 01',
+    cls:'',
+    desc:'All ECUs communicating normally. Green signal pulses flow smoothly across the CAN bus. Brake, Engine, Steering, and Sensor ECUs operating within expected parameters.',
+    action:function(){setNormalState()}
+  },
+  {
+    name:'Attacker Connects',
+    num:'PHASE 02',
+    cls:'attack-phase',
+    desc:'Attacker plugs a malicious device into the OBD-II diagnostic port. First contact with the CAN bus established. No detection yet — the bus has no authentication.',
+    action:function(){showAttacker()}
+  },
+  {
+    name:'Malicious Frames Injected',
+    num:'PHASE 03',
+    cls:'attack-phase',
+    desc:'Fake brake commands injected with ECU ID 0x0CF. The CAN bus trusts these messages — they appear identical to legitimate ones. Spoofing attack begins.',
+    action:function(){startAttackFlow()}
+  },
+  {
+    name:'Chaos — Bus Flooding',
+    num:'PHASE 04',
+    cls:'attack-phase',
+    desc:'DoS attack begins — 10,000+ frames per second flooding the bus. Legitimate ECU signals cannot get through. Brake and Engine ECUs overwhelmed with invalid commands.',
+    action:function(){escalateAttack()}
+  },
+  {
+    name:'IDS Detection Triggered',
+    num:'PHASE 05',
+    cls:'',
+    desc:'CANGuard-X detects frequency spike (10x normal). LSTM anomaly score exceeds threshold. Random Forest classifies: DoS + Spoofing. Pipeline activated in 0.7ms.',
+    action:function(){activateDetection()}
+  },
+  {
+    name:'Attack Blocked & ECU Isolated',
+    num:'PHASE 06',
+    cls:'recover-phase',
+    desc:'Malicious ECU ID 0x0CF quarantined. Fake frames dropped before reaching brake ECU. Safe signals restored. Fleet alert transmitted to 16 vehicles.',
+    action:function(){recoverState()}
+  }
+];
+
+function initAttackPage(){
+  var list=document.getElementById('phase-list');
+  list.innerHTML='';
+  phases.forEach(function(p,i){
+    var d=document.createElement('div');
+    d.className='phase-item'+(i===0?' active':'')+' '+p.cls;
+    d.id='phase-'+i;
+    d.innerHTML='<div class="phase-num">'+p.num+'</div><div class="phase-name">'+p.name+'</div><div class="phase-desc">'+p.desc+'</div>';
+    d.onclick=function(){jumpPhase(i)};
+    list.appendChild(d);
+  });
+  setNormalState();
+  startNormalParticles();
+}
+
+function jumpPhase(i){
+  attackPhase=i;
+  updatePhaseUI();
+  phases[i].action();
+}
+
+function nextPhase(){
+  if(attackPhase<phases.length-1){attackPhase++;updatePhaseUI();phases[attackPhase].action()}
+}
+function prevPhase(){
+  if(attackPhase>0){attackPhase--;updatePhaseUI();phases[attackPhase].action()}
+}
+
+function updatePhaseUI(){
+  phases.forEach(function(_,i){
+    var el=document.getElementById('phase-'+i);
+    el.classList.remove('active');
+  });
+  document.getElementById('phase-'+attackPhase).classList.add('active');
+}
+
+/* SVG helpers */
+function setEcu(id,stroke,fill,textFill){
+  var c=document.getElementById('ecu-'+id+'-circle');
+  if(c){c.setAttribute('stroke',stroke);c.setAttribute('fill',fill)}
+  var t=c?c.parentElement.querySelector('text'):null;
+  if(t)t.setAttribute('fill',textFill||stroke);
+}
+function setBus(stroke,width){
+  var b=document.getElementById('canbus');
+  b.setAttribute('stroke',stroke);
+  if(width)b.setAttribute('stroke-width',width);
+}
+function setConnector(id,stroke){
+  var c=document.getElementById('cn-'+id);
+  if(c)c.setAttribute('stroke',stroke);
+}
+function addLog(msg,cls){
+  var log=document.getElementById('attack-log');
+  var d=document.createElement('div');d.className='log-entry '+cls;
+  var t=new Date();
+  d.textContent='['+t.getHours().toString().padStart(2,'0')+':'+t.getSeconds().toString().padStart(2,'0')+'] '+msg;
+  log.insertBefore(d,log.firstChild);
+}
+
+var particleTimer=null;
+function clearParticles(){
+  if(particleTimer)clearInterval(particleTimer);
+  document.getElementById('particles').innerHTML='';
+}
+
+function createParticle(x1,y,x2,color,duration){
+  var svg=document.getElementById('particles');
+  var c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  c.setAttribute('r','4');c.setAttribute('fill',color);c.setAttribute('opacity','0.9');
+  svg.appendChild(c);
+  var start=null,total=duration||1200;
+  function step(ts){
+    if(!start)start=ts;
+    var progress=Math.min((ts-start)/total,1);
+    c.setAttribute('cx',x1+(x2-x1)*progress);
+    c.setAttribute('cy',y);
+    c.setAttribute('opacity',1-progress*0.5);
+    if(progress<1)requestAnimationFrame(step);
+    else svg.removeChild(c);
+  }
+  requestAnimationFrame(step);
+}
+
+function startNormalParticles(){
+  clearParticles();
+  particleTimer=setInterval(function(){
+    var ecus=[185,265,320,390,450];
+    var src=ecus[Math.floor(Math.random()*ecus.length)];
+    var dst=ecus[Math.floor(Math.random()*ecus.length)];
+    createParticle(src,155,dst,'#00ff88',900);
+  },300);
+}
+
+function setNormalState(){
+  clearParticles();
+  setBus('#1D9E75',4);
+  ['brk','eng','str','sns'].forEach(function(id){setEcu(id,'#1D9E75','#003020','#00ff88')});
+  setEcu('ids','#185FA5','#001530','#00c8ff');
+  ['brk','eng','str','sns','ids'].forEach(function(id){setConnector(id,'#1D9E75')});
+  document.getElementById('attacker-group').setAttribute('opacity','0');
+  document.getElementById('obd-rect').setAttribute('stroke','#1a3050');
+  addLog('Normal operation — all ECUs healthy','safe');
+  startNormalParticles();
+}
+
+function showAttacker(){
+  clearParticles();
+  document.getElementById('attacker-group').setAttribute('opacity','1');
+  document.getElementById('obd-rect').setAttribute('stroke','#ff2244');
+  setConnector('obd','#ff2244');
+  addLog('ALERT: Unknown device detected on OBD-II port','warn');
+  addLog('Device fingerprint: 0x0CF — not in whitelist','warn');
+  startNormalParticles();
+}
+
+function startAttackFlow(){
+  clearParticles();
+  setEcu('brk','#ff2244','#200008','#ff2244');
+  setConnector('brk','#ff2244');
+  setBus('#3a1020',4);
+  addLog('ATTACK: Fake brake command injected — ECU 0x0CF','danger');
+  addLog('Payload: FF FF FF FF FF FF FF FF (max brake)','danger');
+  particleTimer=setInterval(function(){
+    createParticle(320,155,185,'#ff2244',600);
+    setTimeout(function(){createParticle(320,155,265,'#ff4400',700)},200);
+  },400);
+}
+
+function escalateAttack(){
+  clearParticles();
+  ['brk','eng','str','sns'].forEach(function(id){setEcu(id,'#ff2244','#200008','#ff2244')});
+  ['brk','eng','str','sns'].forEach(function(id){setConnector(id,'#ff2244')});
+  setBus('#ff2244',5);
+  addLog('CRITICAL: DoS flood — 11,400 frames/sec detected','danger');
+  addLog('Bus saturation 94% — legitimate signals blocked','danger');
+  addLog('Brake ECU receiving invalid torque commands','danger');
+  particleTimer=setInterval(function(){
+    [185,265,320,390].forEach(function(x,i){
+      setTimeout(function(){createParticle(320,155,x,'#ff2244',400)},i*80);
+    });
+  },200);
+}
+
+function activateDetection(){
+  clearParticles();
+  setEcu('ids','#ffaa00','#201000','#ffaa00');
+  setConnector('ids','#ffaa00');
+  addLog('IDS TRIGGERED: Frequency anomaly — 11.4x baseline','warn');
+  addLog('LSTM score: 0.94 (threshold: 0.70) — ANOMALY','warn');
+  addLog('RF classifier: DoS + Spoofing (conf: 0.97)','warn');
+  addLog('Pipeline activated in 0.7ms','safe');
+  particleTimer=setInterval(function(){
+    [185,265,320,390].forEach(function(x,i){
+      setTimeout(function(){createParticle(x,155,450,'#ffaa00',500)},i*100);
+    });
+  },400);
+}
+
+function recoverState(){
+  clearParticles();
+  setBus('#1D9E75',4);
+  ['brk','eng','str','sns'].forEach(function(id){setEcu(id,'#1D9E75','#003020','#00ff88')});
+  setEcu('ids','#00ff88','#003020','#00ff88');
+  ['brk','eng','str','sns','ids'].forEach(function(id){setConnector(id,'#1D9E75')});
+  document.getElementById('attacker-group').setAttribute('opacity','0.3');
+  document.getElementById('obd-rect').setAttribute('stroke','#ff2244');
+  addLog('BLOCKED: ECU 0x0CF quarantined — 847 frames dropped','safe');
+  addLog('Safe signals restored — all ECUs nominal','safe');
+  addLog('Fleet alert transmitted to 16 vehicles','safe');
+  addLog('Incident logged: DoS+Spoofing via OBD-II','safe');
+  startNormalParticles();
+}
+
+/* ─── PAGE 3: PIPELINE ─── */
+var pipeNodes=[
+  {icon:'▶',label:'CAN IN',color:'#00c8ff'},
+  {icon:'⟳',label:'NORMALIZE',color:'#00c8ff'},
+  {icon:'⊞',label:'FEATURES',color:'#00c8ff'},
+  {icon:'⊛',label:'RAND FOREST',color:'#aa44ff'},
+  {icon:'∿',label:'LSTM',color:'#aa44ff'},
+  {icon:'⊕',label:'AUTHENTIC',color:'#ffaa00'},
+  {icon:'⊘',label:'PLAUSIBLE',color:'#ffaa00'},
+  {icon:'◎',label:'ATTRIBUTE',color:'#ff2244'},
+  {icon:'⚡',label:'IMPACT',color:'#ff2244'},
+  {icon:'⊜',label:'FUSION',color:'#00ff88'},
+  {icon:'▲',label:'RISK',color:'#00ff88'},
+  {icon:'✕',label:'BLOCK',color:'#00ff88'}
+];
+var pipeLines=[
+  {cls:'info',text:'Ingesting CAN stream — 1,024 frames/sec'},
+  {cls:'info',text:'Normalising timestamps, decoding payloads'},
+  {cls:'info',text:'Extracting 5 features: freq, IAT, delta, DLC, rate-per-ID'},
+  {cls:'warn',text:'Random Forest: ATTACK — DoS detected (conf 0.97)'},
+  {cls:'warn',text:'LSTM anomaly score: 0.94 > threshold 0.70'},
+  {cls:'warn',text:'ECU 0x0CF authentication check: FAILED'},
+  {cls:'warn',text:'Physical plausibility: brake cmd invalid at 138 km/h'},
+  {cls:'err', text:'Attack source: ECU ID 0x0CF — OBD-II port'},
+  {cls:'err', text:'Danger score: 91/100 — CRITICAL — imminent loss of control'},
+  {cls:'ok',  text:'Fusion layer: RF + LSTM + Rules all agree: BLOCK'},
+  {cls:'ok',  text:'Risk engine: SEVERITY HIGH — immediate action required'},
+  {cls:'ok',  text:'BLOCKED — 847 frames dropped — ECU 0x0CF isolated — fleet alerted'}
+];
+
+function initPipeline(){
+  var stages=document.getElementById('pipe-stages');
+  stages.innerHTML='';
+  pipeNodes.forEach(function(n,i){
+    var stage=document.createElement('div');stage.className='pipe-stage';
+    var node=document.createElement('div');node.className='pipe-node waiting';node.id='pn-'+i;
+    node.innerHTML='<div class="pico" style="color:'+n.color+'">'+n.icon+'</div><div class="plbl">'+n.label+'</div>';
+    var lbl=document.createElement('div');lbl.className='pipe-stage-label';lbl.textContent=n.label;
+    stage.appendChild(node);
+    if(i<pipeNodes.length-1){
+      var conn=document.createElement('div');conn.className='pipe-connector';conn.id='pc-'+i;
+      stage.appendChild(conn);
+    }
+    stage.appendChild(lbl);
+    stages.appendChild(stage);
+  });
+  document.getElementById('rf-val').textContent='—';document.getElementById('rf-val').style.color='#3a5570';
+  document.getElementById('lstm-val').textContent='—';document.getElementById('lstm-val').style.color='#3a5570';
+  document.getElementById('rf-bar').style.width='0%';
+  document.getElementById('lstm-bar').style.width='0%';
+  document.getElementById('decision-val').textContent='AWAITING PIPELINE';
+  document.getElementById('decision-val').style.color='#3a5570';
+  document.getElementById('pipe-console').innerHTML='<div class="console-line info"><span class="ts">[00:00]</span>CANGuard-X pipeline ready</div>';
+  document.getElementById('pipe-run-btn').disabled=false;
+}
+
+var pipeRunning=false;
+function runPipeline(){
+  if(pipeRunning)return;
+  pipeRunning=true;
+  document.getElementById('pipe-run-btn').disabled=true;
+  var i=0;
+  function step(){
+    if(i>0){
+      document.getElementById('pn-'+(i-1)).className='pipe-node done';
+      if(i>1)document.getElementById('pc-'+(i-2)).className='pipe-connector done';
+    }
+    if(i>=pipeNodes.length){
+      pipeRunning=false;
+      showPipeResults();
+      return;
+    }
+    document.getElementById('pn-'+i).className='pipe-node processing';
+    if(i>0)document.getElementById('pc-'+(i-1)).className='pipe-connector active';
+    addConsoleLine(pipeLines[i].cls,pipeLines[i].text,i);
+    if(i===3)setTimeout(function(){document.getElementById('rf-val').textContent='DoS+Spoof';document.getElementById('rf-val').style.color='#ff2244';document.getElementById('rf-bar').style.width='97%';},200);
+    if(i===4)setTimeout(function(){document.getElementById('lstm-val').textContent='0.94';document.getElementById('lstm-val').style.color='#aa44ff';document.getElementById('lstm-bar').style.width='94%';},200);
+    i++;setTimeout(step,380);
+  }
+  step();
+}
+
+function addConsoleLine(cls,text,idx){
+  var con=document.getElementById('pipe-console');
+  var d=document.createElement('div');d.className='console-line '+cls;
+  var s=String(idx).padStart(2,'0');
+  d.innerHTML='<span class="ts">[00:'+s+']</span>'+text;
+  con.appendChild(d);con.scrollTop=con.scrollHeight;
+}
+
+function showPipeResults(){
+  var dv=document.getElementById('decision-val');
+  dv.textContent='ATTACK CONFIRMED — BLOCK';dv.style.color='#ff2244';dv.style.fontSize='13px';
+}
+
+function resetPipeline(){pipeRunning=false;initPipeline()}
+
+/* ─── PAGE 4: INTELLIGENCE ─── */
+var intelData=[
+  {title:'RANDOM FOREST',icon:'⊛',val:'97.4%',barW:97,clr:'#aa44ff',tag:'DoS + SPOOFING',tagCls:'tag-red',sub:'100 decision trees, 5 features',cls:'alert'},
+  {title:'LSTM DETECTOR',icon:'∿',val:'0.94',barW:94,clr:'#00c8ff',tag:'ANOMALY DETECTED',tagCls:'tag-red',sub:'Sequence length: 50 frames',cls:'alert'},
+  {title:'ECU AUTHENTICITY',icon:'⊕',val:'FAIL',barW:100,clr:'#ff2244',tag:'0x0CF FORGED',tagCls:'tag-red',sub:'Not in ECU whitelist',cls:'alert'},
+  {title:'PHYSICAL RULES',icon:'⊘',val:'BREACH',barW:88,clr:'#ffaa00',tag:'INVALID COMMAND',tagCls:'tag-amber',sub:'Brake cmd at 138 km/h',cls:'firing'},
+  {title:'ATTACK ATTRIBUTION',icon:'◎',val:'0x0CF',barW:100,clr:'#ffaa00',tag:'SOURCE FOUND',tagCls:'tag-amber',sub:'Entry via OBD-II port',cls:'firing'},
+  {title:'IMPACT PREDICTION',icon:'⚡',val:'91/100',barW:91,clr:'#ff2244',tag:'CRITICAL',tagCls:'tag-red',sub:'Imminent loss of control',cls:'alert'},
+  {title:'FUSION DECISION',icon:'⊜',val:'BLOCK',barW:100,clr:'#00ff88',tag:'ALL LAYERS AGREE',tagCls:'tag-green',sub:'RF + LSTM + Rules confirm',cls:'safe-card'},
+  {title:'RECOVERY ENGINE',icon:'▲',val:'DONE',barW:100,clr:'#00ff88',tag:'ECU ISOLATED',tagCls:'tag-green',sub:'Fleet alerted — 16 nodes',cls:'safe-card'}
+];
+
+function initIntel(){
+  var grid=document.getElementById('intel-grid');
+  grid.innerHTML='';
+  intelData.forEach(function(d,i){
+    var card=document.createElement('div');
+    card.className='intel-card';card.id='ic-'+i;
+    card.innerHTML=
+      '<div class="ic-header"><div class="ic-icon" style="background:rgba(0,0,0,.3);border-color:'+d.clr+'"><span style="color:'+d.clr+'">'+d.icon+'</span></div><div class="ic-title">'+d.title+'</div></div>'+
+      '<div class="ic-value" style="color:'+d.clr+'">'+d.val+'</div>'+
+      '<div class="ic-bar-wrap"><div class="ic-bar" id="icb-'+i+'" style="background:'+d.clr+'"></div></div>'+
+      '<div class="ic-tag tag '+d.tagCls+'">'+d.tag+'</div>'+
+      '<div class="ic-sub">'+d.sub+'</div>';
+    grid.appendChild(card);
+    setTimeout(function(idx,cls){return function(){
+      document.getElementById('ic-'+idx).classList.add(cls);
+      document.getElementById('icb-'+idx).style.width=intelData[idx].barW+'%';
+    }}(i,d.cls),200+i*120);
+  });
+}
+
+/* ─── PAGE 5: LIVE DASHBOARD ─── */
+var dashTimer=null,dashRunning=false;
+var frameCount=0,blockedCount=0,totalFrames=0;
+var atkCounts={DoS:0,Fuzzy:0,Replay:0,Spoofing:0};
+var normalIds=['0x1A0','0x2B4','0x3C8','0x0D1','0x4F2','0x1B6','0x33F'];
+var atkMode=false;
+
+function initDash(){
+  renderAtkTypes();
+  renderEcuStatus(false);
+  document.getElementById('dm-fps').textContent='0';
+  document.getElementById('dm-blocked').textContent='0';
+  document.getElementById('dm-acc').textContent='—';
+  document.getElementById('dm-latency').textContent='—';
+}
+
+function renderAtkTypes(){
+  var el=document.getElementById('atk-type-list');el.innerHTML='';
+  var max=Math.max(1,Object.values(atkCounts).reduce(function(a,b){return Math.max(a,b)},0));
+  Object.keys(atkCounts).forEach(function(k){
+    var d=document.createElement('div');d.className='atk-type-row';
+    d.innerHTML='<div><div class="atk-type-name">'+k+'</div><div class="atk-bar-wrap"><div class="atk-bar" style="width:'+Math.round(atkCounts[k]/max*100)+'%"></div></div></div><div class="atk-count">'+atkCounts[k]+'</div>';
+    el.appendChild(d);
+  });
+}
+
+function renderEcuStatus(underAttack){
+  var el=document.getElementById('ecu-status-panel');
+  el.innerHTML='<div style="font-size:9px;letter-spacing:.12em;color:var(--muted);margin-bottom:8px">ECU STATUS</div>';
+  var ecus=[
+    {name:'Brake ECU (0x100)',state:underAttack?'UNDER ATTACK':'NORMAL',ok:!underAttack},
+    {name:'Engine ECU (0x200)',state:'NORMAL',ok:true},
+    {name:'Steering ECU (0x300)',state:'NORMAL',ok:true},
+    {name:'Sensor ECU (0x400)',state:underAttack?'DEGRADED':'NORMAL',ok:!underAttack},
+    {name:'Attacker 0x0CF',state:underAttack?'DETECTED':'INACTIVE',ok:false,warning:!underAttack}
+  ];
+  ecus.forEach(function(e){
+    var d=document.createElement('div');d.className='ecu-row';
+    var dotCls=e.ok?'ok':e.warning?'warning':'danger';
+    var stateClr=e.ok?'var(--green)':e.warning?'var(--muted)':'var(--red)';
+    d.innerHTML='<div class="ecu-dot '+dotCls+'"></div><div class="ecu-name" style="font-size:10px">'+e.name+'</div><div class="ecu-state" style="color:'+stateClr+'">'+e.state+'</div>';
+    el.appendChild(d);
+  });
+}
+
+function toggleDash(){
+  if(dashRunning){
+    clearInterval(dashTimer);dashRunning=false;
+    document.getElementById('dash-btn').textContent='▶ START LIVE SIMULATION';
+    document.getElementById('dash-btn').style.color='var(--blue)';
+  } else {
+    dashRunning=true;
+    document.getElementById('dash-btn').textContent='⏹ STOP';
+    document.getElementById('dash-btn').style.color='var(--red)';
+    runDash();
+  }
+}
+
+function triggerAttack(){
+  atkMode=true;setTimeout(function(){atkMode=false},4000);
+}
+
+function resetDash(){
+  clearInterval(dashTimer);dashRunning=false;frameCount=0;blockedCount=0;totalFrames=0;
+  atkCounts={DoS:0,Fuzzy:0,Replay:0,Spoofing:0};atkMode=false;
+  document.getElementById('can-feed').innerHTML='<div class="feed-header"><span>TIMESTAMP</span><span>CAN ID</span><span>DLC</span><span>STATUS</span><span>PAYLOAD</span></div>';
+  document.getElementById('dash-btn').textContent='▶ START LIVE SIMULATION';
+  document.getElementById('dash-btn').style.color='var(--blue)';
+  document.getElementById('dm-fps').textContent='0';
+  document.getElementById('dm-blocked').textContent='0';
+  document.getElementById('dm-acc').textContent='—';
+  document.getElementById('dm-latency').textContent='—';
+  document.getElementById('risk-fill').style.width='8%';
+  document.getElementById('risk-fill').style.background='var(--green)';
+  document.getElementById('risk-score').textContent='LOW';document.getElementById('risk-score').style.color='var(--green)';
+  initDash();
+}
+
+var tick=0;
+function runDash(){
+  dashTimer=setInterval(function(){
+    tick++;
+    var fps=Math.round(850+Math.random()*200);
+    frameCount+=fps;totalFrames++;
+    var isAtk=atkMode||(tick%11===0)||(tick%17===0);
+    var feed=document.getElementById('can-feed');
+    var now=new Date();
+    var ts=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0')+'.'+Math.floor(now.getMilliseconds()/10).toString().padStart(2,'0');
+    var row=document.createElement('div');
+    if(isAtk){
+      blockedCount++;
+      var types=Object.keys(atkCounts);
+      var t=types[Math.floor(Math.random()*types.length)];
+      atkCounts[t]++;
+      var latency=(0.4+Math.random()*0.7).toFixed(1);
+      row.className='feed-row attack-row';
+      row.innerHTML='<span class="feed-ts">'+ts+'</span><span style="color:var(--red)">0x0CF</span><span class="feed-dlc">8</span><span class="feed-label label-attack">BLOCKED</span><span class="feed-data">FF FF FF FF FF FF FF FF — '+t+' ['+latency+'ms]</span>';
+      renderEcuStatus(true);
+    } else {
+      var nid=normalIds[Math.floor(Math.random()*normalIds.length)];
+      var dlc=Math.floor(Math.random()*5+4);
+      var payload=Array.from({length:dlc},function(){return Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase()}).join(' ');
+      row.className='feed-row';
+      row.innerHTML='<span class="feed-ts">'+ts+'</span><span>'+nid+'</span><span class="feed-dlc">'+dlc+'</span><span class="feed-label label-normal">NORMAL</span><span class="feed-data">'+payload+'</span>';
+      if(!atkMode)renderEcuStatus(false);
+    }
+    var header=feed.querySelector('.feed-header');
+    feed.insertBefore(row,header?header.nextSibling:feed.firstChild);
+    while(feed.children.length>50)feed.removeChild(feed.lastChild);
+
+    document.getElementById('dm-fps').textContent=fps.toLocaleString();
+    document.getElementById('dm-blocked').textContent=blockedCount;
+    var acc=blockedCount>0?Math.min(99,98+Math.round(Math.random())):100;
+    document.getElementById('dm-acc').textContent=acc+'%';
+    document.getElementById('dm-latency').textContent=(0.4+Math.random()*0.5).toFixed(1)+'ms';
+
+    var riskW=isAtk?Math.min(95,40+blockedCount*6):Math.max(5,10-tick);
+    riskW=Math.min(95,riskW);
+    var rf=document.getElementById('risk-fill'),rs=document.getElementById('risk-score');
+    rf.style.width=riskW+'%';
+    if(riskW>70){rf.style.background='#ff2244';rs.textContent='CRITICAL';rs.style.color='#ff2244'}
+    else if(riskW>40){rf.style.background='#ffaa00';rs.textContent='ELEVATED';rs.style.color='#ffaa00'}
+    else{rf.style.background='#00ff88';rs.textContent='LOW';rs.style.color='#00ff88'}
+
+    renderAtkTypes();
+  },700);
+}
+
+/* ─── INIT ─── */
+initAttackPage();
+</script>
+</body>
+</html>
